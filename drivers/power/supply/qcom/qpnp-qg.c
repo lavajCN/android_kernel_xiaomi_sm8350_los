@@ -104,19 +104,49 @@ static ssize_t battery_type_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%s\n",
 			qg_get_battery_type(chip));
 }
+static ssize_t voltage_max_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+    struct qpnp_qg *chip = dev_get_drvdata(dev);
+    return scnprintf(buf, PAGE_SIZE, "%d\n", chip->bp.float_volt_uv);
+}
+
+static ssize_t voltage_max_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+    struct qpnp_qg *chip = dev_get_drvdata(dev);
+    int val, rc;
+
+    if (kstrtoint(buf, 0, &val))
+        return -EINVAL;
+
+    // 验证电压范围（示例：限制为 3000mV 到 5000mV）
+    if (val < 3000000 || val > 5000000) {
+        pr_err("Invalid voltage_max value: %d\n", val);
+        return -EINVAL;
+    }
+
+    chip->bp.float_volt_uv = val;
+    // 通知充电器更新电压
+    qg_notify_charger(chip);
+
+    return count;
+}
+static DEVICE_ATTR_RW(voltage_max);
 static DEVICE_ATTR_RO(battery_type);
 
 static struct attribute *qg_attrs[] = {
-	&dev_attr_esr_mod_count.attr,
-	&dev_attr_esr_count.attr,
-	&dev_attr_soc_interval_ms.attr,
-	&dev_attr_soc_cold_interval_ms.attr,
-	&dev_attr_maint_soc_update_ms.attr,
-	&dev_attr_fvss_delta_soc_interval_ms.attr,
-	&dev_attr_fvss_vbat_scaling.attr,
-	&dev_attr_qg_ss_feature.attr,
-	&dev_attr_battery_type.attr,
-	NULL,
+    &dev_attr_esr_mod_count.attr,
+    &dev_attr_esr_count.attr,
+    &dev_attr_soc_interval_ms.attr,
+    &dev_attr_soc_cold_interval_ms.attr,
+    &dev_attr_maint_soc_update_ms.attr,
+    &dev_attr_fvss_delta_soc_interval_ms.attr,
+    &dev_attr_fvss_vbat_scaling.attr,
+    &dev_attr_qg_ss_feature.attr,
+    &dev_attr_battery_type.attr,
+    &dev_attr_voltage_max.attr, // 新增
+    NULL,
 };
 ATTRIBUTE_GROUPS(qg);
 
@@ -2110,10 +2140,10 @@ static int qg_iio_write_raw(struct iio_dev *indio_dev,
 
 	switch (chan->channel) {
 	case PSY_IIO_CHARGE_FULL:
-		if (chip->dt.cl_disable) {
-			pr_warn("Capacity learning disabled!\n");
-			return 0;
-		}
+		//if (chip->dt.cl_disable) {
+			//pr_warn("Capacity learning disabled!\n");
+			//return 0;
+		//}
 		if (chip->cl->active) {
 			pr_warn("Capacity learning active!\n");
 			return 0;
@@ -4172,11 +4202,11 @@ static int qg_parse_cl_dt(struct qpnp_qg *chip)
 	return 0;
 }
 
-#define DEFAULT_VBATT_EMPTY_MV		3200
+#define DEFAULT_VBATT_EMPTY_MV		2800
 #define DEFAULT_VBATT_EMPTY_COLD_MV	3000
-#define DEFAULT_VBATT_CUTOFF_MV		3400
-#define DEFAULT_VBATT_LOW_MV		3500
-#define DEFAULT_VBATT_LOW_COLD_MV	3800
+#define DEFAULT_VBATT_CUTOFF_MV		3000
+#define DEFAULT_VBATT_LOW_MV		3400
+#define DEFAULT_VBATT_LOW_COLD_MV	3600
 #define DEFAULT_ITERM_MA		100
 #define DEFAULT_DELTA_SOC		1
 #define DEFAULT_SHUTDOWN_SOC_SECS	360
