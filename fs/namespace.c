@@ -33,6 +33,12 @@
 
 #include "pnode.h"
 #include "internal.h"
+// 在 fs/namespace.c 文件头部添加：
+#ifdef CONFIG_KSU
+extern int can_umount(const struct path *path, int flags);
+extern int path_umount(struct path *path, int flags);
+#endif
+
 
 /* Maximum number of mounts in a mount namespace */
 unsigned int sysctl_mount_max __read_mostly = 100000;
@@ -1750,7 +1756,7 @@ SYSCALL_DEFINE1(oldumount, char __user *, name)
 
 #endif
 
-static int can_umount(const struct path *path, int flags)
+int can_umount(const struct path *path, int flags)
  {
 	 struct mount *mnt = real_mount(path->mnt);
 	 if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
@@ -1767,6 +1773,7 @@ static int can_umount(const struct path *path, int flags)
 		 return -EPERM;
 	 return 0;
  }
+
 
 int path_umount(struct path *path, int flags)
  {
@@ -4104,3 +4111,8 @@ const struct proc_ns_operations mntns_operations = {
 	.install	= mntns_install,
 	.owner		= mntns_owner,
 };
+// 在文件尾部添加：
+#ifdef CONFIG_KSU
+EXPORT_SYMBOL(can_umount);
+EXPORT_SYMBOL(path_umount);
+#endif
